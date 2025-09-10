@@ -4,7 +4,7 @@ classdef functions
     methods(Static)
 
         function rate = rate(sensor)
-            SNR = (abs(sensor.H_k).^2) .* c.p_k ./ (c.N0 .* inv_pos(sensor.b_k));
+            SNR = (abs(sensor.H_k).^2) .* c.p_k ./ (c.N0 .* sensor.b_k);
             rate = sensor.b_k .* log(1 + SNR) / log(2);
         end
 
@@ -31,21 +31,15 @@ classdef functions
         function T_tr = T_tr(sensor)
             r = functions.rate(sensor);
             mu_star = functions.best_mu(sensor);
-            T_tr = sensor.D_k * inv_pos(r * mu_star);
+            T_tr = sensor.D_k / (r * mu_star);
 
         end
 
         function T_DT = T_DT(sensor)
-            T_DT = c.c_k * (sensor.D_k * inv_pos(sensor.f_dt_k));
+            T_DT = c.c_k * (sensor.D_k / sensor.f_dt_k);
         end
 
         function T_total_bs = T_total_bs(sensor)
-            T_total_bs = functions.T_comp(sensor) + functions.T_tr(sensor) + functions.T_DT(sensor);
-        end
-
-        function T_total_bs = T_total_bs_from_b_f(b, f, sensor)
-            sensor.b_k = b;
-            sensor.f_dt_k = f;
             T_total_bs = functions.T_comp(sensor) + functions.T_tr(sensor) + functions.T_DT(sensor);
         end
 
@@ -56,81 +50,70 @@ classdef functions
                 1/mu_star - beta_star];
         end
 
-        function return_sensor_list = leader_optimization(sensor_list)
-            K = length(sensor_list);
-            cvx_begin
-                variable T nonnegative;
-                variable b(K) nonnegative;
-                variable f(K) nonnegative;
-
-                for k = 1:K
-                    sensor_list(k).f_dt_k = f(k);
-                    sensor_list(k).b_k = b(k);
-                end
-
-                minimize(T);
-                subject to
-                sum(b) <= c.B_total;
-                sum(f) <= c.C_DT;
-                for k = 1:K
-                    T >= functions.T_total_bs(sensor_list(k));
-                    T >= 0;
-                end
-            cvx_end
-            for k = 1:K
-                sensor_list(k).b_k = b(k);
-                sensor_list(k).f_dt_k = f(k);
-            end
-            return_sensor_list = sensor_list;
-        end
-
         function return_sensor_list = T_DT_optimization(sensor_list)
             K = length(sensor_list);
-            cvx_begin
-                variable T nonnegative;
-                variable f(K) nonnegative;
-                
-                minimize(T);
-                subject to
-                    sum(f) <= c.C_DT;
-                    for k = 1:K
-                        T >= functions.T_DT(sensor_list(k));
-                        T >= 0;
-                    end
-            cvx_end
+            D = zeros(K,1);
+            for k=1:K
+                D(k) = sensor_list(k).D_k;
+            end
+
+            soft = @(x) (exp(x - max(x)) ./ sum(exp(x - max(x)))) * c.C_DT;
+
+            function v = objective(x)
+                f = soft(x);
+                T = D .* c.c_k ./ f;
+                v = max(T);
+            end
+
+            x0 = zeros(K,1); opts = optimset('Display','off');
+            best_val = inf; best_x = x0;
+
+            for r = 1:6
+                xr = (r==1) * x0 + (r>1) * (0.3 * randn(K,1));
+                [xt, vt] = fminsearch(@objective, xr, opts);
+                if vt < best_val, best_val = vt; best_x = xt; end
+            end
+
+            f_opt = soft(best_x);
+
             for k = 1:K
-                    sensor_list(k).f_dt_k = f(k);
+                    sensor_list(k).f_dt_k = f_opt(k);
             end
             return_sensor_list = sensor_list;
         end
 
         function return_sensor_list = T_tr_optimization(sensor_list)
             K = length(sensor_list);
-            cvx_begin
-                cvx_precision low
-                cvx_solver sedumi
-                variable T nonnegative;
-                variable b(K) nonnegative;
+            D = zeros(K,1); beta = zeros(K,1); r_k_const = zeros(K,1);
+            for k=1:K
+                D(k) = sensor_list(k).D_k;
+                beta(k) = functions.best_beta(sensor_list(k));
+                r_k_const(k) = abs(sensor_list(k).H_k)^2 .* c.p_k ./ c.N0;
+            end
+            rate_fun = @(b,ck) b .* log(1 + ck ./ max(b,1e-12));
+            
+            soft = @(x) (exp(x - max(x)) ./ sum(exp(x - max(x)))) * c.B_total;
+            function v = objective(x)
+                b = soft(x);
+                T = D ./ (beta .* rate_fun(b, r_k_const(k)));
+                v = max(T);
+            end
 
-                minimize(T);
+            x0 = zeros(K,1); opts = optimset('Display','off');
+            best_val = inf; best_x = x0;
 
-                subject to
-                   for k = 1:K
-                    -rel_entr(c.N0 * b(k), c.N0 * b(k) + (abs(sensor_list(k).H_k) ^ 2) * c.p_k) * inv_pos(log(2)) >= sensor_list(k).D_k * inv_pos(functions.best_beta(sensor_list(k)) * T * c.N0);
-                   T >= 0;
-                   end
-                   sum(b) <= c.B_total;
-                
-                
-            cvx_end
+            for r = 1:6
+                xr = (r==1) * x0 + (r>1) * (0.3 * randn(K,1));
+                [xt, vt] = fminsearch(@objective, xr, opts);
+                if vt < best_val, best_val = vt; best_x = xt; end
+            end
+
+            b_opt = soft(best_x);
             for k = 1:K
-                    sensor_list(k).b_k = b(k);
+                sensor_list(k).b_k = b_opt(k);
             end
             return_sensor_list = sensor_list;
         end
 
     end
 end
-
-% prop_inv(x, y)
-% -rel_entr(x, y)

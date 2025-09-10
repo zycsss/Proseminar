@@ -110,8 +110,8 @@ Iterative update for dual variables using adaptive step size \($\mathbf{h}_k^{(l
     - Positive inverse: `inv_pos(x)`
 - Reformulation
     $$T_k^t >= D_k /(\beta \cdot r(b))$
-- $$$T_k^t >= \frac{D_k} {\beta}\times\frac{1}{b \cdot log(1+c/b)}$$
-    $$b \cdot log(1+c/b) >= \frac{D_k}{\beta \times T_k^t }$$
+- $T_k^t >= \frac{D_k} {\beta}\times\frac{1}{b \cdot log(1+c/b)}$
+    $b \cdot \log(1+c/b) >= \frac{D_k}{\beta \times T_k^t }$
 - Relative entropy function `rel_entr(x,y)`
     - `-rel_entr(x,y) = - (x .* log(x/y)) = x .* log(y/x)`
-        - `x = b`, `,y = b+c`
+        - `x = b`, ,`y = b+c`

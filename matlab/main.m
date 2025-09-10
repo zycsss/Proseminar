@@ -4,7 +4,7 @@ step_length = 2 * pi / (K-1);
 CN = c.sigma_k * (randn(1,1) + 1j*randn(1,1)) / sqrt(2);
 NLoS = sqrt(1 / (c.kappa + 1)) * CN;
 for k = 1:K
-    sensor_list(k).D_k = c.D_k;
+    sensor_list(k).D_k = c.D_k * k / K;
     sensor_list(k).f_dt_k = c.C_DT / K;
     sensor_list(k).b_k = c.B_total / K;
     sensor_list(k).lam1 = 0.1;
@@ -15,5 +15,6 @@ for k = 1:K
     sensor_list(k).h_k = LoS + NLoS;
     sensor_list(k).H_k = sqrt(c.A0) * sensor_list(k).d_k^(-0.5*c.alpha) * sensor_list(k).h_k;
 end
-%sensor_list = functions.T_DT_optimization(sensor_list);
+sensor_list = functions.T_DT_optimization(sensor_list);
 sensor_list = functions.T_tr_optimization(sensor_list);
+functions.T_total_bs(sensor_list)
