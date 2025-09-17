@@ -10,7 +10,7 @@ classdef functions
 
         function beta_star = best_beta(sensor)
             beta_star = min(...
-                (1/c.epsilon) * log((c.f_S / (c.epsilon + sensor.D_k)) * (sensor.lam1 + sensor.lam2)), ...
+                (1/c.epsilon) * log((c.f_S / (c.epsilon * sensor.D_k)) * (sensor.lam1 + sensor.lam2)), ...
                 1.0...
                 );
         end
@@ -56,71 +56,65 @@ classdef functions
                 1/mu_star - beta_star];
         end
 
-        function return_sensor_list = leader_optimization(sensor_list)
+        function re = c_r_k(sensor)
+            % constant part of r_k function: |H_k|^2 * p_k / N_0
+            re = (abs(sensor.H_k) ^ 2) * c.p_k / c.N0;
+        end
+
+        function sensor_list = leader_optimization(sensor_list)
             K = length(sensor_list);
             cvx_begin
-                variable T nonnegative;
+                variable T_DT nonnegative;
+                variable T_tr nonnegative;
                 variable b(K) nonnegative;
                 variable f(K) nonnegative;
 
-                for k = 1:K
-                    sensor_list(k).f_dt_k = f(k);
-                    sensor_list(k).b_k = b(k);
-                end
+                minimize(T_DT + T_tr);
 
-                minimize(T);
                 subject to
-                sum(b) <= c.B_total;
-                sum(f) <= c.C_DT;
-                for k = 1:K
-                    T >= functions.T_total_bs(sensor_list(k));
-                    T >= 0;
-                end
+                    sum(b) <= c.B_total;
+                    sum(f) <= c.C_DT;
+                    for k = 1:K
+                        f(k) >= c.c_k * sensor_list(k).D_k * inv_pos(T_DT);
+                        -rel_entr(b(k), b(k) + functions.c_r_k(sensor_list(k))) * inv_pos(log(2)) >= sensor_list(k).D_k * inv_pos(functions.best_beta(sensor_list(k)) * T_tr);
+                    end
             cvx_end
             for k = 1:K
                 sensor_list(k).b_k = b(k);
                 sensor_list(k).f_dt_k = f(k);
             end
-            return_sensor_list = sensor_list;
         end
 
-        function return_sensor_list = T_DT_optimization(sensor_list)
+        function sensor_list = T_DT_optimization(sensor_list)
             K = length(sensor_list);
             cvx_begin
-                variable T nonnegative;
-                variable f(K) nonnegative;
-                
+                variable T nonnegative
+                variable f(K) nonnegative
+
                 minimize(T);
+
                 subject to
                     sum(f) <= c.C_DT;
                     for k = 1:K
-                        T >= functions.T_DT(sensor_list(k));
-                        T >= 0;
+                        f(k) >= c.c_k * sensor_list(k).D_k * inv_pos(T);
                     end
             cvx_end
             for k = 1:K
-                    sensor_list(k).f_dt_k = f(k);
+                sensor_list(k).f_dt_k = f(k);
             end
-            return_sensor_list = sensor_list;
         end
 
-        function return_sensor_list = T_tr_optimization(sensor_list)
+        function sensor_list = T_tr_optimization(sensor_list)
             K = length(sensor_list);
             cvx_begin
-                cvx_precision low
-                cvx_solver sedumi
                 variable T nonnegative;
                 variable b(K) nonnegative;
-                
-                b(1) = 1;
-                b(2) = 1;
 
                 minimize(T);
 
                 subject to
                    for k = 1:K
-                    -rel_entr(c.N0 * b(k), c.N0 * b(k) + (abs(sensor_list(k).H_k) ^ 2) * c.p_k) * inv_pos(log(2)) >= sensor_list(k).D_k * inv_pos(functions.best_beta(sensor_list(k)) * T * c.N0);
-                   T >= 0;
+                        -rel_entr(b(k), b(k) + functions.c_r_k(sensor_list(k))) >= sensor_list(k).D_k * inv_pos(functions.best_beta(sensor_list(k)) * T);
                    end
                    sum(b) <= c.B_total;
                 
@@ -129,7 +123,6 @@ classdef functions
             for k = 1:K
                     sensor_list(k).b_k = b(k);
             end
-            return_sensor_list = sensor_list;
         end
 
     end
