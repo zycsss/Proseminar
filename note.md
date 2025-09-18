@@ -115,3 +115,7 @@ Iterative update for dual variables using adaptive step size \($\mathbf{h}_k^{(l
 - Relative entropy function `rel_entr(x,y)`
     - `-rel_entr(x,y) = - (x .* log(x/y)) = x .* log(y/x)`
         - `x = b`, ,`y = b+c`
+
+## Solver
+
+Mosek
