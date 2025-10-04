@@ -16,5 +16,7 @@ classdef c
         xi = 1e-6;
         d_k = 378;
         D_k = 4e3;
+        h0 = 1e-2;
+        h_factor = 2;
     end
 end

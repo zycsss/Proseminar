@@ -3,6 +3,31 @@ classdef functions
 
     methods(Static)
 
+        function sensor_list = gen_sensor_list(K)
+            sensor_list = struct([]);
+            for k = 1:K
+                sensor_list(k).D_k = c.D_k/ K;
+                sensor_list(k).f_dt_k = c.C_DT / K;
+                sensor_list(k).b_k = c.B_total / K;
+
+                sensor_list(k).lam1 = 0.1;
+                sensor_list(k).lam2 = 0.1;
+                sensor_list(k).old_g_sgn = [1,1];
+                sensor_list(k).g = [0,0];
+                sensor_list(k).h = [c.h0, c.h0];
+
+                sensor_list(k).d_k = c.d_k;
+                sensor_list(k).theta_k = randn(1,1) * 2 * pi;
+                CN = c.sigma_k * (randn(1,1) + 1j*randn(1,1)) / sqrt(2);
+                NLoS = sqrt(1 / (c.kappa + 1)) * CN;
+                LoS = sqrt(c.kappa / (c.kappa + 1)) * c.sigma_k * exp(1j * sensor_list(k).theta_k);
+                sensor_list(k).h_k = LoS + NLoS;
+                % sensor_list(k).H_k = sqrt(c.A0) * sensor_list(k).d_k^(-0.5*c.alpha) * sensor_list(k).h_k;
+                sensor_list(k).H_k = 1;
+            end
+            
+        end
+
         function r_k = r_k(sensor)
             r_k = sensor.b_k * log(1 + functions.c_r_k(sensor) / sensor.b_k) / log(2);
         end
@@ -18,7 +43,7 @@ classdef functions
             if sensor.lam2 <= 0
                 mu_star = 1.0;
             else
-                mu_star = sqrt(sensor.lam2 * functions.rate(sensor) / sensor.D_k);
+                mu_star = sqrt(sensor.lam2 * functions.r_k(sensor) / sensor.D_k);
             end
         end
 
@@ -126,15 +151,40 @@ classdef functions
             end
         end
 
-        function g = g(sensor)
-            beta_star = functions.best_beta(sensor);
-            mu_star = functions.best_mu(sensor);
-            g = [1 - beta_star, ...
-                1/mu_star - beta_star];
+        function g_sgn = g_sgn(sensor)
+            g = sensor.g;
+            g_sgn = [0,0];
+            for k = 1:2
+                if g(k) >= 0
+                    g_sgn(k) = 1;
+                else
+                    g_sgn(k) = -1;
+                end
+            end
         end
 
+        function sensor = update_lambda(sensor)
+
+            % get g
+            beta_star = functions.best_beta(sensor);
+            mu_star = functions.best_mu(sensor);
+            sensor.g = [1 - beta_star, ...
+                        1/mu_star - beta_star];   
+            
+            new_g_sgn = functions.g_sgn(sensor);
+            
+            % update h
+            for k = 1:2
+                sensor.h(k) = max(c.h0 + (sensor.old_g_sgn(k) + new_g_sgn(k)) * sensor.h(k) * c.h_factor / 2,...
+                    0);
+            end
+            
+            % update lambda
+            sensor.lam1 = sensor.lam1 + sensor.h(1) * sensor.g(1);
+            sensor.lam2 = sensor.lam2 + sensor.h(2) * sensor.g(2);
+
+            % store old g_sgn
+            sensor.old_g_sgn = new_g_sgn;
+        end
     end
 end
-
-% prop_inv(x, y)
-% -rel_entr(x, y)

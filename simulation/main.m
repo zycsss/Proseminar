@@ -1,26 +1,29 @@
-sensor_list = struct([]);
+
 rng("default");
-K = 5;
-for k = 1:K
-    sensor_list(k).D_k = c.D_k / K;
-    sensor_list(k).f_dt_k = c.C_DT / K;
-    sensor_list(k).b_k = c.B_total / K;
-    sensor_list(k).lam1 = 0.1;
-    sensor_list(k).lam2 = 0.1;
-    sensor_list(k).d_k = c.d_k;
-    sensor_list(k).theta_k = randn(1,1) * 2 * pi;
-    CN = c.sigma_k * (randn(1,1) + 1j*randn(1,1)) / sqrt(2);
-    NLoS = sqrt(1 / (c.kappa + 1)) * CN;
-    LoS = sqrt(c.kappa / (c.kappa + 1)) * c.sigma_k * exp(1j * sensor_list(k).theta_k);
-    sensor_list(k).h_k = LoS + NLoS;
-    % sensor_list(k).H_k = sqrt(c.A0) * sensor_list(k).d_k^(-0.5*c.alpha) * sensor_list(k).h_k;
-    sensor_list(k).H_k = 1;
+
+K = 1;
+
+sensor_list = functions.gen_sensor_list(K);
+
+t = [0];
+
+delta_t = 10000;
+l = 1;
+
+while delta_t > c.xi && l < c.L_max
+    % sensor_list = functions.leader_optimization(sensor_list);
+
+    for k = 1:K
+        sensor_list(k) = functions.update_lambda(sensor_list(k));
+    end
+
+    t(end + 1) = functions.T_bs(sensor_list);
+
+    delta_t = t(end) - t(end-1);
+    l = l+1;
+    disp({sensor_list.h})
 end
-sensor_list = functions.leader_optimization(sensor_list);
-% sensor_list = functions.T_tr_optimization(sensor_list);
-% sensor_list = functions.T_DT_optimization(sensor_list);
-for k = 1:K
-    sensor_list(k).b_k
-    sensor_list(k).f_dt_k
-end
-functions.T_bs(sensor_list)
+
+t(1) = [];
+
+disp(t)
