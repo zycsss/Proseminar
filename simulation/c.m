@@ -18,5 +18,7 @@ classdef c
         D_k = 4e3;
         h0 = 1e-2;
         h_factor = 2;
+        c_linesearch = 1e-4;
+        beta_linesearch = 0.5;
     end
 end

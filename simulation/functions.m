@@ -10,8 +10,7 @@ classdef functions
                 sensor_list(k).f_dt_k = c.C_DT / K;
                 sensor_list(k).b_k = c.B_total / K;
 
-                sensor_list(k).lam1 = 0.1;
-                sensor_list(k).lam2 = 0.1;
+                sensor_list(k).lam = [0.1, 0.1];
                 sensor_list(k).old_g_sgn = [1,1];
                 sensor_list(k).g = [0,0];
                 sensor_list(k).h = [c.h0, c.h0];
@@ -25,7 +24,7 @@ classdef functions
                 % sensor_list(k).H_k = sqrt(c.A0) * sensor_list(k).d_k^(-0.5*c.alpha) * sensor_list(k).h_k;
                 sensor_list(k).H_k = 1;
             end
-            
+
         end
 
         function r_k = r_k(sensor)
@@ -34,16 +33,16 @@ classdef functions
 
         function beta_star = best_beta(sensor)
             beta_star = min(...
-                (1/c.epsilon) * log((c.f_S / (c.epsilon * sensor.D_k)) * (sensor.lam1 + sensor.lam2)), ...
+                (1/c.epsilon) * log((c.f_S / (c.epsilon * sensor.D_k)) * (sensor.lam(1) + sensor.lam(2))), ...
                 1.0...
                 );
         end
 
         function mu_star = best_mu(sensor)
-            if sensor.lam2 <= 0
+            if sensor.lam(2) <= 0
                 mu_star = 1.0;
             else
-                mu_star = sqrt(sensor.lam2 * functions.r_k(sensor) / sensor.D_k);
+                mu_star = sqrt(sensor.lam(2) * functions.r_k(sensor) / sensor.D_k);
             end
         end
 
@@ -88,22 +87,22 @@ classdef functions
         function sensor_list = leader_optimization(sensor_list)
             K = length(sensor_list);
             cvx_begin
-                variable T_DT(K) nonnegative;
-                variable T_tr(K) nonnegative;
-                variable T nonnegative;
-                variable b(K) nonnegative;
-                variable f(K) nonnegative;
+            variable T_DT(K) nonnegative;
+            variable T_tr(K) nonnegative;
+            variable T nonnegative;
+            variable b(K) nonnegative;
+            variable f(K) nonnegative;
 
-                minimize(T);
+            minimize(T);
 
-                subject to
-                    sum(b) <= c.B_total;
-                    sum(f) <= c.C_DT;
-                    for k = 1:K
-                        f(k) >= c.c_k * sensor_list(k).D_k * inv_pos(T_DT(k));
-                        -rel_entr(b(k), b(k) + functions.c_r_k(sensor_list(k))) * inv_pos(log(2)) >= sensor_list(k).D_k * inv_pos(functions.best_beta(sensor_list(k)) * T_tr(k));
-                        T >= T_DT(k) + T_tr(k) + functions.T_comp(sensor_list(k));
-                    end
+            subject to
+            sum(b) <= c.B_total;
+            sum(f) <= c.C_DT;
+            for k = 1:K
+                f(k) >= c.c_k * sensor_list(k).D_k * inv_pos(T_DT(k));
+                -rel_entr(b(k), b(k) + functions.c_r_k(sensor_list(k))) * inv_pos(log(2)) >= sensor_list(k).D_k * inv_pos(functions.best_beta(sensor_list(k)) * T_tr(k));
+                T >= T_DT(k) + T_tr(k) + functions.T_comp(sensor_list(k));
+            end
             cvx_end
             for k = 1:K
                 sensor_list(k).b_k = b(k);
@@ -114,16 +113,16 @@ classdef functions
         function sensor_list = T_DT_optimization(sensor_list)
             K = length(sensor_list);
             cvx_begin
-                variable T nonnegative
-                variable f(K) nonnegative
+            variable T nonnegative
+            variable f(K) nonnegative
 
-                minimize(T);
+            minimize(T);
 
-                subject to
-                    sum(f) <= c.C_DT;
-                    for k = 1:K
-                        f(k) >= c.c_k * sensor_list(k).D_k * inv_pos(T); %#ok<*VUNUS>
-                    end
+            subject to
+            sum(f) <= c.C_DT;
+            for k = 1:K
+                f(k) >= c.c_k * sensor_list(k).D_k * inv_pos(T); %#ok<*VUNUS>
+            end
             cvx_end
             for k = 1:K
                 sensor_list(k).f_dt_k = f(k);
@@ -133,18 +132,18 @@ classdef functions
         function sensor_list = T_tr_optimization(sensor_list)
             K = length(sensor_list);
             cvx_begin
-                variable T nonnegative;
-                variable b(K) nonnegative;
+            variable T nonnegative;
+            variable b(K) nonnegative;
 
-                minimize(T);
+            minimize(T);
 
-                subject to
-                   for k = 1:K
-                        -rel_entr(b(k), b(k) + functions.c_r_k(sensor_list(k))) >= sensor_list(k).D_k * inv_pos(functions.best_beta(sensor_list(k)) * T);
-                   end
-                   sum(b) <= c.B_total;
-                
-                
+            subject to
+            for k = 1:K
+                -rel_entr(b(k), b(k) + functions.c_r_k(sensor_list(k))) >= sensor_list(k).D_k * inv_pos(functions.best_beta(sensor_list(k)) * T);
+            end
+            sum(b) <= c.B_total;
+
+
             cvx_end
             for k = 1:K
                 sensor_list(k).b_k = b(k);
@@ -163,28 +162,47 @@ classdef functions
             end
         end
 
-        function sensor = update_lambda(sensor)
-
-            % get g
+        function g = g(sensor)
             beta_star = functions.best_beta(sensor);
             mu_star = functions.best_mu(sensor);
-            sensor.g = [1 - beta_star, ...
-                        1/mu_star - beta_star];   
-            
-            new_g_sgn = functions.g_sgn(sensor);
-            
-            % update h
-            for k = 1:2
-                sensor.h(k) = max(c.h0 + (sensor.old_g_sgn(k) + new_g_sgn(k)) * sensor.h(k) * c.h_factor / 2,...
-                    0);
-            end
-            
-            % update lambda
-            sensor.lam1 = sensor.lam1 + sensor.h(1) * sensor.g(1);
-            sensor.lam2 = sensor.lam2 + sensor.h(2) * sensor.g(2);
-
-            % store old g_sgn
-            sensor.old_g_sgn = new_g_sgn;
+            g = [1 - beta_star, ...
+                1/mu_star - beta_star];
         end
+
+        function sensor = get_g(sensor)
+            sensor.g = functions.g(sensor);
+        end
+
+        function sensor = update_lambda(sensor)
+
+            % update lambda
+            sensor.lam = sensor.lam + functions.find_step_size_h(sensor) * functions.g(sensor);
+
+        end
+
+        function dual = dual(sensor)
+            beta = functions.best_beta(sensor);
+            mu = functions.best_mu(sensor);
+            dual = (sensor.D_k / c.f_S) * exp(beta * c.epsilon) + (sensor.D_k / functions.r_k(sensor)) * mu;
+        end
+
+        function h = find_step_size_h(sensor)
+            h = 1;
+            dual = functions.dual(sensor);
+            g = functions.g(sensor);
+
+            sensor.lam = max(0, sensor.lam + h * g);
+
+            while functions.dual(sensor) > dual 
+                dual = functions.dual(sensor);
+
+                h = 2 * h;
+                sensor.lam = max(0, sensor.lam + h * g);
+            end
+
+            h = h / 2;
+        end
+
+       
     end
 end
