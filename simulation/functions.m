@@ -18,8 +18,8 @@ classdef functions
                 NLoS = sqrt(1 / (c.kappa + 1)) * CN;
                 LoS = sqrt(c.kappa / (c.kappa + 1)) * c.sigma_k * exp(1j * sensor_list(k).theta_k);
                 sensor_list(k).h_k = LoS + NLoS;
-                % sensor_list(k).H_k = sqrt(c.A0) * sensor_list(k).d_k^(-0.5*c.alpha) * sensor_list(k).h_k;
-                sensor_list(k).H_k = 1;
+                sensor_list(k).H_k = sqrt(c.A0) * sensor_list(k).d_k^(-0.5*c.alpha) * sensor_list(k).h_k;
+                % sensor_list(k).H_k = 1;
             end
 
         end
@@ -84,6 +84,9 @@ classdef functions
         function sensor_list = leader_optimization(sensor_list)
             K = length(sensor_list);
             cvx_begin
+            cvx_solver mosek;
+            cvx_quiet TRUE;
+
             variable T_DT(K) nonnegative;
             variable T_tr(K) nonnegative;
             variable T nonnegative;
@@ -179,41 +182,39 @@ classdef functions
 
         end
 
-        function dual = dual(sensor)
-            beta = functions.best_beta(sensor);
-            mu = functions.best_mu(sensor);
-            dual = (sensor.D_k / c.f_S) * exp(beta * c.epsilon) + (sensor.D_k / functions.r_k(sensor)) * mu;
+        function dual = dual(sensor, x_k, g)
+            beta = x_k(1);
+            mu = x_k(2);
+            dual = (sensor.D_k / c.f_S) * exp(beta * c.epsilon) + (sensor.D_k / functions.r_k(sensor)) * mu + dot(sensor.lam, g);
         end
 
         function sensor = linesearch(sensor)
             h = 1;
-            dual = functions.dual(sensor);
+            
             g = functions.g(sensor);
+            x_k = [functions.best_beta(sensor), functions.best_mu(sensor)];
             original_lam = sensor.lam;
 
+            dual = functions.dual(sensor, x_k, g);
+
             sensor = functions.update_lambda(sensor, h, g, original_lam);
-            new_dual = functions.dual(sensor);
+            new_dual = functions.dual(sensor, x_k, g);
 
             % while new_dual > dual 
-            %     dual = functions.dual(sensor);
-
+            %     dual = functions.dual(sensor, x_k, g)
+            % 
             %     h = 2 * h;
             %     sensor = functions.update_lambda(sensor, h, g, original_lam);
-            %     new_dual = functions.dual(sensor)
+            %     new_dual = functions.dual(sensor, x_k, g);
             % end
 
-            dual_list = [];
-
             for k = 1:40
-                dual = functions.dual(sensor);
+                dual = functions.dual(sensor, x_k, g);
 
                 h = 2 * h;
                 sensor = functions.update_lambda(sensor, h, g, original_lam);
-                new_dual = functions.dual(sensor);
-                dual_list(end+1) = new_dual;
+                new_dual = functions.dual(sensor, x_k, g)
             end
-
-            disp(dual_list)
 
             sensor = functions.update_lambda(sensor, h/2, g, original_lam);
         end
