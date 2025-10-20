@@ -119,3 +119,10 @@ Iterative update for dual variables using adaptive step size \($\mathbf{h}_k^{(l
 ## Solver
 
 Mosek
+
+## Simulation
+
+- bandwidth
+- compression ratio
+- processing speed
+- 

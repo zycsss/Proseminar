@@ -1,7 +1,7 @@
 
 rng("default");
 
-K = 1;
+K = 5;
 
 sensor_list = functions.gen_sensor_list(K);
 
@@ -21,7 +21,7 @@ while delta_t > c.xi && l < c.L_max
 
     t(end + 1) = functions.T_bs(sensor_list);
 
-    delta_t = t(end) - t(end-1);
+    delta_t = abs(t(end) - t(end-1));
     l = l+1;
 end
 
