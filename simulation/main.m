@@ -1,9 +1,8 @@
 
 rng("default");
 
-K = 5;
-
-sensor_list = functions.gen_sensor_list(K);
+sensor_list = functions.gen_sensor_list_not_uniform();
+K = length(sensor_list);
 
 t = [0];
 
@@ -27,4 +26,14 @@ end
 
 t(1) = [];
 
-disp(t)
+sensor_name = categorical({'s_1', 's_2', 's_3', 's_4'});
+stack_name = {'comp', 'tr', 'DT'};
+
+time = [functions.T_comp_list(sensor_list); functions.T_tr_list(sensor_list); functions.T_DT_list(sensor_list)];
+
+figure;
+bar(sensor_name, time, 'stacked')
+legend(stack_name)
+
+xlabel('sensor')
+ylabel('time (s)');

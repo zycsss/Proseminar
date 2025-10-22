@@ -9,6 +9,8 @@ classdef functions
                 sensor_list(k).D_k = c.D_k/ K;
                 sensor_list(k).f_dt_k = c.C_DT / K;
                 sensor_list(k).b_k = c.B_total / K;
+                sensor_list(k).f_s_k = c.f_S;
+                sensor_list(k).p_k = c.p_k;
 
                 sensor_list(k).lam = [0.1, 0.1];
 
@@ -30,7 +32,7 @@ classdef functions
 
         function beta_star = best_beta(sensor)
             beta_star = min(...
-                (1/c.epsilon) * log((c.f_S / (c.epsilon * sensor.D_k)) * (sensor.lam(1) + sensor.lam(2))), ...
+                (1/c.epsilon) * log((sensor.f_s_k / (c.epsilon * sensor.D_k)) * (sensor.lam(1) + sensor.lam(2))), ...
                 c.beta_max...
                 );
         end
@@ -49,7 +51,7 @@ classdef functions
 
         function T_comp = T_comp(sensor)
             beta_star = functions.best_beta(sensor);
-            T_comp = sensor.D_k * functions.comp_complexity(beta_star) / c.f_S;
+            T_comp = sensor.D_k * functions.comp_complexity(beta_star) / sensor.f_s_k;
         end
 
         function T_tr = T_tr(sensor)
@@ -78,7 +80,7 @@ classdef functions
 
         function re = c_r_k(sensor)
             % constant part of r_k function: |H_k|^2 * p_k / N_0
-            re = (abs(sensor.H_k) ^ 2) * c.p_k / c.N0;
+            re = (abs(sensor.H_k) ^ 2) * sensor.p_k / c.N0;
         end
 
         function sensor_list = leader_optimization(sensor_list)
@@ -182,7 +184,7 @@ classdef functions
             beta = functions.best_beta(sensor);
             mu = functions.best_mu(sensor);
             g = functions.g(sensor);
-            dual = (sensor.D_k / c.f_S) * exp(beta * c.epsilon) + (sensor.D_k / functions.r_k(sensor)) * mu + dot(sensor.lam, g);
+            dual = (sensor.D_k / sensor.f_s_k) * exp(beta * c.epsilon) + (sensor.D_k / functions.r_k(sensor)) * mu + dot(sensor.lam, g);
         end
 
         function sensor = linesearch(sensor)
@@ -215,6 +217,69 @@ classdef functions
             sensor = functions.update_lambda(sensor, h/2, g, original_lam);
         end
 
-       
+        function sensor_list = gen_sensor_list_not_uniform()
+            K = 4;
+            sensor_list = struct([]);
+            v = [0.25, 0.75, 1.25, 1.75];
+            for k = 1:K
+                % Sensor constant
+                sensor_list(k).D_k = v(k) * 4e3;
+                sensor_list(k).f_s_k = v(k) * 200e3;
+                sensor_list(k).p_k = v(k) * 31.6e-3;
+                sensor_list(k).d_k = c.d_k;
+                sensor_list(k).theta_k = randn(1,1) * 2 * pi;
+                CN = c.sigma_k * (randn(1,1) + 1j*randn(1,1)) / sqrt(2);
+                NLoS = sqrt(1 / (c.kappa + 1)) * CN;
+                LoS = sqrt(c.kappa / (c.kappa + 1)) * c.sigma_k * exp(1j * sensor_list(k).theta_k);
+                sensor_list(k).h_k = LoS + NLoS;
+                sensor_list(k).H_k = sqrt(c.A0) * sensor_list(k).d_k^(-0.5*c.alpha) * sensor_list(k).h_k;
+
+                % Initial variables awaiting for optimization
+                sensor_list(k).f_dt_k = c.C_DT / K;
+                sensor_list(k).b_k = c.B_total / K;
+                sensor_list(k).lam = [0.1, 0.1];
+            end
+
+        end
+
+        function beta_list = beta_list(sensor_list)
+            K = length(sensor_list);
+            beta_list = [];
+            for k = 1:K
+                beta_list(end+1) = functions.best_beta(sensor_list(k));
+            end
+        end
+
+        function T_comp_list = T_comp_list(sensor_list)
+            K = length(sensor_list);
+            T_comp_list = [];
+            for k = 1:K
+                T_comp_list(end+1) = functions.T_comp(sensor_list(k));
+            end
+        end
+
+        function T_tr_list = T_tr_list(sensor_list)
+            K = length(sensor_list);
+            T_tr_list = [];
+            for k = 1:K
+                T_tr_list(end+1) = functions.T_tr(sensor_list(k));
+            end
+        end
+
+        function T_DT_list = T_DT_list(sensor_list)
+            T_DT_list = [];
+            K = length(sensor_list);
+            for k = 1:K
+                T_DT_list(end+1) = functions.T_DT(sensor_list(k));
+            end
+        end
+
+        function T_bs_list = T_bs_list(sensor_list)
+            T_bs_list = [];
+            K = length(sensor_list);
+            for k = 1:K
+                T_bs_list(end+1) = functions.T_bs_sensor(sensor_list(k));
+            end
+        end
     end
 end
