@@ -223,9 +223,12 @@ classdef functions
             v = [0.25, 0.75, 1.25, 1.75];
             for k = 1:K
                 % Sensor constant
-                sensor_list(k).D_k = v(k) * 4e3;
-                sensor_list(k).f_s_k = v(k) * 200e3;
+                % sensor_list(k).D_k = v(k) * 4e3;
+                % sensor_list(k).f_s_k = v(k) * 200e3;
                 sensor_list(k).p_k = v(k) * 31.6e-3;
+                sensor_list(k).D_k = 4e3;
+                sensor_list(k).f_s_k = 200e3;
+                % sensor_list(k).p_k = 31.6e-3;
                 sensor_list(k).d_k = c.d_k;
                 sensor_list(k).theta_k = randn(1,1) * 2 * pi;
                 CN = c.sigma_k * (randn(1,1) + 1j*randn(1,1)) / sqrt(2);
@@ -281,5 +284,55 @@ classdef functions
                 T_bs_list(end+1) = functions.T_bs_sensor(sensor_list(k));
             end
         end
+
+        function [b, f, beta, tStruct] = run_one_time(sensor_list)
+            K = length(sensor_list);
+
+            t = [0];
+
+            delta_t = 10000;
+            l = 1;
+
+            while delta_t > c.xi && l < c.L_max
+                sensor_list = functions.leader_optimization(sensor_list);
+
+                t(end + 1) = functions.T_bs(sensor_list);
+
+                for k = 1:K
+                    sensor_list(k) = functions.linesearch(sensor_list(k));
+                end
+
+                t(end + 1) = functions.T_bs(sensor_list);
+
+                delta_t = abs(t(end) - t(end-1));
+                l = l+1;
+            end
+
+            t(1) = [];
+            tStruct.total = t(end);
+            tStruct.comp_list = functions.T_comp_list(sensor_list);
+            tStruct.tr_list = functions.T_tr_list(sensor_list);
+            tStruct.DT_list = functions.T_DT_list(sensor_list);
+            b = [sensor_list.b_k];
+            f = [sensor_list.f_dt_k];
+            beta = functions.beta_list(sensor_list);
+        end
+
+        function t_avg = run_many_times(gen_func, n)
+            t_avg.total = 0;
+            t_avg.comp_list = 0;
+            t_avg.tr_list = 0;
+            t_avg.DT_list = 0;
+            for k = 1:n
+                sensor_list = gen_func();
+                [b, f, beta, tStruct] = functions.run_one_time(sensor_list);
+                t_avg.total = t_avg.total + tStruct.total / n;
+                t_avg.comp_list = t_avg.comp_list + tStruct.comp_list / n;
+                t_avg.tr_list = t_avg.tr_list + tStruct.tr_list / n;
+                t_avg.DT_list = t_avg.DT_list + tStruct.DT_list / n;
+                k
+            end
+        end
+
     end
 end
