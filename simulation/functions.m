@@ -225,13 +225,13 @@ classdef functions
                 % Sensor constant
                 % sensor_list(k).D_k = v(k) * 4e3;
                 % sensor_list(k).f_s_k = v(k) * 200e3;
-                sensor_list(k).p_k = v(k) * 31.6e-3;
+                % sensor_list(k).p_k = v(k) * 31.6e-3;
                 sensor_list(k).D_k = 4e3;
                 sensor_list(k).f_s_k = 200e3;
-                % sensor_list(k).p_k = 31.6e-3;
+                sensor_list(k).p_k = 31.6e-3;
                 sensor_list(k).d_k = c.d_k;
                 sensor_list(k).theta_k = randn(1,1) * 2 * pi;
-                CN = c.sigma_k * (randn(1,1) + 1j*randn(1,1)) / sqrt(2);
+                CN = c.sigma_k * randn(1, 1, 'like', 1j);
                 NLoS = sqrt(1 / (c.kappa + 1)) * CN;
                 LoS = sqrt(c.kappa / (c.kappa + 1)) * c.sigma_k * exp(1j * sensor_list(k).theta_k);
                 sensor_list(k).h_k = LoS + NLoS;
@@ -319,6 +319,9 @@ classdef functions
         end
 
         function t_avg = run_many_times(gen_func, n)
+            % b_list = [];
+            % f_list = [];
+            % beta_list = [];
             t_avg.total = 0;
             t_avg.comp_list = 0;
             t_avg.tr_list = 0;
@@ -330,8 +333,14 @@ classdef functions
                 t_avg.comp_list = t_avg.comp_list + tStruct.comp_list / n;
                 t_avg.tr_list = t_avg.tr_list + tStruct.tr_list / n;
                 t_avg.DT_list = t_avg.DT_list + tStruct.DT_list / n;
+                % b_list(end+1) = [b_list;b];
+                % f_list(end+1) = f;
+                % beta_list(end+1) = beta; 
                 k
             end
+            % b_avg = mean(b_list, 1);
+            % f_avg = mean(f_list, 1);
+            % beta_avg = mean(beta_list, 1);
         end
 
     end

@@ -4,7 +4,7 @@ classdef c
         epsilon = 3.5;
         kappa = 10.0;
         alpha = 2.0;
-        sigma_k = 1.0;
+        sigma_k = 0.8;
         A0 = 10^(-30/10);
         beta_max = 3.0;
         f_S = 200e3; 
