@@ -318,29 +318,29 @@ classdef functions
             beta = functions.beta_list(sensor_list);
         end
 
-        function t_avg = run_many_times(gen_func, n)
-            % b_list = [];
-            % f_list = [];
-            % beta_list = [];
+        function [b_avg, f_avg, beta_avg, t_avg] = run_many_times(n)
+            b_list = zeros(4, n);
+            f_list = zeros(4, n);
+            beta_list = zeros(4, n);
             t_avg.total = 0;
             t_avg.comp_list = 0;
             t_avg.tr_list = 0;
             t_avg.DT_list = 0;
             for k = 1:n
-                sensor_list = gen_func();
+                sensor_list = functions.gen_sensor_list_not_uniform();
                 [b, f, beta, tStruct] = functions.run_one_time(sensor_list);
                 t_avg.total = t_avg.total + tStruct.total / n;
                 t_avg.comp_list = t_avg.comp_list + tStruct.comp_list / n;
                 t_avg.tr_list = t_avg.tr_list + tStruct.tr_list / n;
                 t_avg.DT_list = t_avg.DT_list + tStruct.DT_list / n;
-                % b_list(end+1) = [b_list;b];
-                % f_list(end+1) = f;
-                % beta_list(end+1) = beta; 
+                b_list(:, k) = b;
+                f_list(:, k) = f;
+                beta_list(:, k) = beta; 
                 k
             end
-            % b_avg = mean(b_list, 1);
-            % f_avg = mean(f_list, 1);
-            % beta_avg = mean(beta_list, 1);
+            b_avg = mean(b_list, 2);
+            f_avg = mean(f_list, 2);
+            beta_avg = mean(beta_list, 2);
         end
 
     end
