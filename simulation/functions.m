@@ -35,6 +35,7 @@ classdef functions
                 (1/c.epsilon) * log((sensor.f_s_k / (c.epsilon * sensor.D_k)) * (sensor.lam(1) + sensor.lam(2))), ...
                 c.beta_max...
                 );
+            beta_star = max(1.0, beta_star);
         end
 
         function mu_star = best_mu(sensor)
@@ -223,10 +224,10 @@ classdef functions
             v = [0.25, 0.75, 1.25, 1.75];
             for k = 1:K
                 % Sensor constant
-                % sensor_list(k).D_k = v(k) * 4e3;
+                sensor_list(k).D_k = v(k) * 4e3;
                 % sensor_list(k).f_s_k = v(k) * 200e3;
                 % sensor_list(k).p_k = v(k) * 31.6e-3;
-                sensor_list(k).D_k = 4e3;
+                % sensor_list(k).D_k = 4e3;
                 sensor_list(k).f_s_k = 200e3;
                 sensor_list(k).p_k = 31.6e-3;
                 sensor_list(k).d_k = c.d_k;
