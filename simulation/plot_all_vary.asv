@@ -1,0 +1,47 @@
+function plot_all_vary(t_max, beta_avg, p_k_list, bandwidth_list, beta_max_list)
+    arguments (Input)
+        t_max
+        beta_avg
+        p_k_list = c.p_k_list;
+        bandwidth_list = c.bandwidth_list;
+        beta_max_list = c.beta_max_list;
+    end
+
+    tiledlayout(2, 3);
+
+    nexttile;
+    plot(beta_max_list, t_max.beta, 'o--');
+    xlabel('max compresion ratio');
+    ylabel('t_{max} [s]');
+    legend;
+            
+    nexttile;
+    semilogy(p_k_list, t_max.p_k, 'o--');
+    xlabel('p_k [W]');
+    ylabel('t_{max} [s]');
+    legend;
+
+    nexttile;
+    semilogx(bandwidth_list, t_max.B, 'o--');
+    xlabel('bandwidth [Hz]');
+    ylabel('t_{max} [s]');
+    legend;
+
+    nexttile;
+    plot(beta_max_list, beta_avg.beta, 'o--');
+    xlabel('max compresion ratio');
+    ylabel('beta_{avg} [s]');
+    legend;
+    
+    nexttile;
+    plot(p_k_list, beta_avg.p_k, 'o--');
+    xlabel('p_k [W]');
+    ylabel('beta_{avg}');
+    legend;
+    
+    nexttile;
+    semilogx(bandwidth_list, beta_avg.B, 'o--');
+    xlabel('bandwidth [Hz]');
+    ylabel('beta_{avg}');
+    legend;
+end

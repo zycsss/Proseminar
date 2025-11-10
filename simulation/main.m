@@ -1,10 +1,8 @@
 
-% rng("shuffle");
+% bar_charts
+% [b_avg, f_avg, beta_avg, t_avg] = functions.run_many_times(100, "type", scenario.uniform, "beta_max", 2, "fixed_b_k", true);
+% plot_bar(b_avg, f_avg, beta_avg, t_avg)
 
-% sensor_list = functions.gen_sensor_list_not_uniform();
+% 3 varied
+% [t_max, beta_avg] = functions.run_multiple_varies(100);
 
-% [b, f, beta, tStruct] = functions.run_one_time(sensor_list);
-
-% t_avg = tStruct;
-[b_avg, f_avg, beta_avg, t_avg] = functions.run_many_times(100);
-plot_bar(b_avg, f_avg, beta_avg, t_avg)

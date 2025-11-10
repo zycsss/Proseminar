@@ -8,7 +8,7 @@ classdef c
         A0 = 10^(-30/10);
         beta_max = 3.0;
         f_S = 200e3; 
-        p_k = 10^((15-30)/10);
+        p_k = 31.6e-3;
         B_total = 100e3;   
         C_DT = 50e6;
         c_k = 1e4;
@@ -20,5 +20,8 @@ classdef c
         h_factor = 2;
         c_linesearch = 1e-4;
         beta_linesearch = 0.5;
+        beta_max_list = 1:0.25:3;
+        p_k_list = linspace(1.6e-3, 100e-3, 10);
+        bandwidth_list = logspace(2, 5, 10);
     end
 end

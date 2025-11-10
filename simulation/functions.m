@@ -3,27 +3,56 @@ classdef functions
 
     methods(Static)
 
-        function sensor_list = gen_sensor_list(K)
+        function sensor_list = gen_sensor_list(type, options)
+
+            arguments
+                type;
+
+                options.beta_max = c.beta_max;
+                options.bandwidth = c.B_total;
+                options.p_k = c.p_k;
+            end
+
+            K = 4;
             sensor_list = struct([]);
+            v = [0.25, 0.75, 1.25, 1.75];
             for k = 1:K
-                sensor_list(k).D_k = c.D_k/ K;
-                sensor_list(k).f_dt_k = c.C_DT / K;
-                sensor_list(k).b_k = c.B_total / K;
-                sensor_list(k).f_s_k = c.f_S;
-                sensor_list(k).p_k = c.p_k;
-
-                sensor_list(k).lam = [0.1, 0.1];
-
+                sensor_list(k).beta_max = options.beta_max;
+                sensor_list(k).B_total = options.bandwidth;
                 sensor_list(k).d_k = c.d_k;
                 sensor_list(k).theta_k = randn(1,1) * 2 * pi;
-                CN = c.sigma_k * (randn(1,1) + 1j*randn(1,1)) / sqrt(2);
+                CN = c.sigma_k * randn(1, 1, 'like', 1j);
                 NLoS = sqrt(1 / (c.kappa + 1)) * CN;
                 LoS = sqrt(c.kappa / (c.kappa + 1)) * c.sigma_k * exp(1j * sensor_list(k).theta_k);
                 sensor_list(k).h_k = LoS + NLoS;
                 sensor_list(k).H_k = sqrt(c.A0) * sensor_list(k).d_k^(-0.5*c.alpha) * sensor_list(k).h_k;
-                % sensor_list(k).H_k = 1;
-            end
 
+                % Initial variables awaiting for optimization
+                sensor_list(k).f_dt_k = c.C_DT / K;
+                sensor_list(k).b_k = options.bandwidth / K;
+                sensor_list(k).lam = [0.1, 0.1];
+
+                % sensor constants
+                sensor_list(k).D_k = 4e3;
+                sensor_list(k).f_s_k = 200e3;
+                sensor_list(k).p_k = options.p_k;
+
+                switch type
+                    case scenario.uniform
+                        
+                    case scenario.p_k
+                        sensor_list(k).p_k = v(k) * options.p_k;
+
+                    case scenario.D_k
+                        sensor_list(k).D_k = v(k) * 4e3;
+
+                    case scenario.f_s_k
+                        sensor_list(k).f_s_k = v(k) * 200e3;
+                    otherwise
+                        
+                end
+                
+            end
         end
 
         function r_k = r_k(sensor)
@@ -33,7 +62,7 @@ classdef functions
         function beta_star = best_beta(sensor)
             beta_star = min(...
                 (1/c.epsilon) * log((sensor.f_s_k / (c.epsilon * sensor.D_k)) * (sensor.lam(1) + sensor.lam(2))), ...
-                c.beta_max...
+                sensor.beta_max...
                 );
             beta_star = max(1.0, beta_star);
         end
@@ -84,7 +113,14 @@ classdef functions
             re = (abs(sensor.H_k) ^ 2) * sensor.p_k / c.N0;
         end
 
-        function sensor_list = leader_optimization(sensor_list)
+        function sensor_list = leader_optimization(sensor_list, options)
+
+            arguments
+                sensor_list 
+                options.fixed_b_k = false
+                options.fixed_f_DT_k = false
+            end
+
             K = length(sensor_list);
             cvx_begin
             cvx_solver mosek;
@@ -93,13 +129,22 @@ classdef functions
             variable T_DT(K) nonnegative;
             variable T_tr(K) nonnegative;
             variable T nonnegative;
-            variable b(K) nonnegative;
-            variable f(K) nonnegative;
+            if ~ options.fixed_b_k
+                variable b(K) nonnegative;
+            else
+                b = repelem(sensor_list(1).B_total/K, K);
+            end
+            
+            if ~ options.fixed_f_DT_k
+                variable f(K) nonnegative;
+            else
+                f = repelem(c.C_DT/K, K);
+            end
 
             minimize(T);
 
             subject to
-            sum(b) <= c.B_total;
+            sum(b) <= sensor_list(1).B_total;
             sum(f) <= c.C_DT;
             for k = 1:K
                 f(k) >= c.c_k * sensor_list(k).D_k * inv_pos(T_DT(k));
@@ -110,46 +155,6 @@ classdef functions
             for k = 1:K
                 sensor_list(k).b_k = b(k);
                 sensor_list(k).f_dt_k = f(k);
-            end
-        end
-
-        function sensor_list = T_DT_optimization(sensor_list)
-            K = length(sensor_list);
-            cvx_begin
-            variable T nonnegative
-            variable f(K) nonnegative
-
-            minimize(T);
-
-            subject to
-            sum(f) <= c.C_DT;
-            for k = 1:K
-                f(k) >= c.c_k * sensor_list(k).D_k * inv_pos(T); %#ok<*VUNUS>
-            end
-            cvx_end
-            for k = 1:K
-                sensor_list(k).f_dt_k = f(k);
-            end
-        end
-
-        function sensor_list = T_tr_optimization(sensor_list)
-            K = length(sensor_list);
-            cvx_begin
-            variable T nonnegative;
-            variable b(K) nonnegative;
-
-            minimize(T);
-
-            subject to
-            for k = 1:K
-                -rel_entr(b(k), b(k) + functions.c_r_k(sensor_list(k))) >= sensor_list(k).D_k * inv_pos(functions.best_beta(sensor_list(k)) * T);
-            end
-            sum(b) <= c.B_total;
-
-
-            cvx_end
-            for k = 1:K
-                sensor_list(k).b_k = b(k);
             end
         end
 
@@ -207,43 +212,7 @@ classdef functions
                 new_dual = functions.dual(sensor);
             end
 
-            % for k = 1:40
-            %     dual = functions.dual(sensor, x_k, g);
-
-            %     h = 2 * h;
-            %     sensor = functions.update_lambda(sensor, h, g, original_lam);
-            %     new_dual = functions.dual(sensor, x_k, g)
-            % end
-
             sensor = functions.update_lambda(sensor, h/2, g, original_lam);
-        end
-
-        function sensor_list = gen_sensor_list_not_uniform()
-            K = 4;
-            sensor_list = struct([]);
-            v = [0.25, 0.75, 1.25, 1.75];
-            for k = 1:K
-                % Sensor constant
-                sensor_list(k).D_k = v(k) * 4e3;
-                % sensor_list(k).f_s_k = v(k) * 200e3;
-                % sensor_list(k).p_k = v(k) * 31.6e-3;
-                % sensor_list(k).D_k = 4e3;
-                sensor_list(k).f_s_k = 200e3;
-                sensor_list(k).p_k = 31.6e-3;
-                sensor_list(k).d_k = c.d_k;
-                sensor_list(k).theta_k = randn(1,1) * 2 * pi;
-                CN = c.sigma_k * randn(1, 1, 'like', 1j);
-                NLoS = sqrt(1 / (c.kappa + 1)) * CN;
-                LoS = sqrt(c.kappa / (c.kappa + 1)) * c.sigma_k * exp(1j * sensor_list(k).theta_k);
-                sensor_list(k).h_k = LoS + NLoS;
-                sensor_list(k).H_k = sqrt(c.A0) * sensor_list(k).d_k^(-0.5*c.alpha) * sensor_list(k).h_k;
-
-                % Initial variables awaiting for optimization
-                sensor_list(k).f_dt_k = c.C_DT / K;
-                sensor_list(k).b_k = c.B_total / K;
-                sensor_list(k).lam = [0.1, 0.1];
-            end
-
         end
 
         function beta_list = beta_list(sensor_list)
@@ -286,7 +255,12 @@ classdef functions
             end
         end
 
-        function [b, f, beta, tStruct] = run_one_time(sensor_list)
+        function [b, f, beta, tStruct] = run_one_time(sensor_list, options)
+            arguments
+                sensor_list 
+                options.fixed_b_k = false
+                options.fixed_f_DT_k = false
+            end
             K = length(sensor_list);
 
             t = [0];
@@ -295,7 +269,7 @@ classdef functions
             l = 1;
 
             while delta_t > c.xi && l < c.L_max
-                sensor_list = functions.leader_optimization(sensor_list);
+                sensor_list = functions.leader_optimization(sensor_list, "fixed_b_k", options.fixed_b_k, "fixed_f_DT_k", options.fixed_f_DT_k);
 
                 t(end + 1) = functions.T_bs(sensor_list);
 
@@ -319,30 +293,192 @@ classdef functions
             beta = functions.beta_list(sensor_list);
         end
 
-        function [b_avg, f_avg, beta_avg, t_avg] = run_many_times(n)
+        function [b_avg, f_avg, beta_avg, t_avg] = run_many_times(n, options)
+
+            arguments
+                n
+
+                options.type = scenario.uniform;
+                options.beta_max = c.beta_max;
+                options.bandwidth = c.B_total;
+                options.p_k = c.p_k;
+                options.fixed_b_k = false
+                options.fixed_f_DT_k = false
+            end
+
             b_list = zeros(4, n);
             f_list = zeros(4, n);
             beta_list = zeros(4, n);
-            t_avg.total = 0;
-            t_avg.comp_list = 0;
-            t_avg.tr_list = 0;
-            t_avg.DT_list = 0;
-            for k = 1:n
-                sensor_list = functions.gen_sensor_list_not_uniform();
-                [b, f, beta, tStruct] = functions.run_one_time(sensor_list);
-                t_avg.total = t_avg.total + tStruct.total / n;
-                t_avg.comp_list = t_avg.comp_list + tStruct.comp_list / n;
-                t_avg.tr_list = t_avg.tr_list + tStruct.tr_list / n;
-                t_avg.DT_list = t_avg.DT_list + tStruct.DT_list / n;
+            t_total = zeros(1, n);
+            t_comp_list = zeros(4, n);
+            t_DT_list = zeros(4, n);
+            t_tr_list = zeros(4, n);
+            parfor k = 1:n
+                fprintf('iteration %d; beta_max: %.2f; bandwidth: %e; p_k: %e \n', k, options.beta_max, options.bandwidth, options.p_k);
+
+                sensor_list = functions.gen_sensor_list(options.type, "beta_max", options.beta_max, "bandwidth", options.bandwidth, "p_k", options.p_k);
+                
+                [b, f, beta, tStruct] = functions.run_one_time(sensor_list, "fixed_b_k", options.fixed_b_k, "fixed_f_DT_k", options.fixed_f_DT_k);
+                t_total(1, k) = tStruct.total;
+                t_comp_list(:, k) = tStruct.comp_list;
+                t_tr_list(:, k) = tStruct.tr_list;
+                t_DT_list(:, k) = tStruct.DT_list;
                 b_list(:, k) = b;
                 f_list(:, k) = f;
-                beta_list(:, k) = beta; 
-                k
+                beta_list(:, k) = beta;
             end
             b_avg = mean(b_list, 2);
             f_avg = mean(f_list, 2);
             beta_avg = mean(beta_list, 2);
+            t_avg.total = mean(t_total, 2);
+            t_avg.comp_list = mean(t_comp_list, 2)';
+            t_avg.tr_list = mean(t_tr_list, 2)';
+            t_avg.DT_list = mean(t_DT_list, 2)';
         end
+
+        function [t_max, beta_avg] = varied_beta_max(beta_max_list, options)
+            arguments
+                beta_max_list;
+
+                options.runs = 100;
+                options.fixed_b_k = false
+                options.fixed_f_DT_k = false
+            end
+
+            K = length(beta_max_list);
+
+            if K == 0
+                t_max = null;
+                beta_avg = null;
+                return
+            end
+
+            beta_avg = zeros(1, K);
+            t_max = zeros(1, K);
+
+            for k = 1:K
+                [b_avg, f_avg, beta_avg_k, t_avg] = functions.run_many_times(options.runs, "beta_max", beta_max_list(k));
+                beta_avg(k) = mean(beta_avg_k);
+                t_max(k) = t_avg.total;
+            end
+        end
+
+        function varied_beta_max_plot(n)
+            beta_max_list = 1:0.5:3;
+            [t_max, beta_avg] = functions.varied_beta_max(beta_max_list, "runs", n);
+            
+            tiledlayout(2, 1);
+            
+            nexttile;
+            plot(beta_max_list, t_max);
+            xlabel('max compresion ratio');
+            ylabel('t_{max} [s]');
+            
+            nexttile;
+            plot(beta_max_list, beta_avg);
+            xlabel('max compresion ratio');
+            ylabel('beta_{avg} [s]');
+        end
+
+        function [t_max, beta_avg] = varied_bandwidth(bandwidth_list, options)
+            arguments
+                bandwidth_list;
+
+                options.runs = 100;
+            end
+
+            K = length(bandwidth_list);
+
+            if K == 0
+                t_max = null;
+                beta_avg = null;
+                return
+            end
+
+            beta_avg = zeros(1, K);
+            t_max = zeros(1, K);
+
+            for k = 1:K
+                [b_avg, f_avg, beta_avg_k, t_avg] = functions.run_many_times(options.runs, "bandwidth", bandwidth_list(k));
+                beta_avg(k) = mean(beta_avg_k);
+                t_max(k) = t_avg.total;
+            end
+        end
+
+        function varied_bandwidth_plot(n)
+            bandwidth_list = logspace(2, 5, 5);
+            [t_max, beta_avg] = functions.varied_bandwidth(bandwidth_list, "runs", n);
+            
+            tiledlayout(2, 1);
+            
+            nexttile;
+            semilogx(bandwidth_list, t_max);
+            xlabel('bandwidth [Hz]');
+            ylabel('t_{max} [s]');
+            
+            nexttile;
+            semilogx(bandwidth_list, beta_avg);
+            xlabel('bandwidth [Hz]');
+            ylabel('beta_{avg}');
+        end
+
+        function [t_max, beta_avg] = varied_p_k(p_k_list, options)
+            arguments
+                p_k_list;
+
+                options.runs = 100;
+            end
+
+            K = length(p_k_list);
+            if K == 0
+                t_max = null;
+                beta_avg = null;
+                return
+            end
+
+            beta_avg = zeros(1, K);
+            t_max = zeros(1, K);
+
+            for k = 1:K
+                [b_avg, f_avg, beta_avg_k, t_avg] = functions.run_many_times(options.runs, "p_k", p_k_list(k));
+                beta_avg(k) = mean(beta_avg_k);
+                t_max(k) = t_avg.total;
+            end
+        end
+
+        function varied_p_k_plot(n)
+            p_k_list = linspace(1.6e-3, 100e-3, 5);
+            [t_max, beta_avg] = functions.varied_p_k(p_k_list, "runs", n);
+            
+            tiledlayout(2, 1);
+            
+            nexttile;
+            semilogy(p_k_list, t_max);
+            xlabel('p_k [W]');
+            ylabel('t_{max} [s]');
+            
+            nexttile;
+            plot(p_k_list, beta_avg);
+            xlabel('p_k [W]');
+            ylabel('beta_{avg}');
+        end
+
+        function [t_max, beta_avg] = run_multiple_varies(n, options)
+            arguments (Input)
+                n 
+                options.beta_max_list = c.beta_max_list;
+                options.p_k_list = c.p_k_list;
+                options.bandwidth_list = c.bandwidth_list;
+            end
+
+            [t_max.p_k, beta_avg.p_k] = functions.varied_p_k(options.p_k_list, "runs", n);
+
+            [t_max.B, beta_avg.B] = functions.varied_bandwidth(options.bandwidth_list, "runs", n);
+
+            [t_max.beta, beta_avg.beta] = functions.varied_beta_max(options.beta_max_list, "runs", n);
+
+        end
+
 
     end
 end
