@@ -8,45 +8,77 @@ function plot_all_vary(t_max, beta_avg, p_k_list, bandwidth_list, beta_max_list)
     end
 
     tiledlayout(2, 3);
+    
+    
 
-    name = {'proposed scheme', '\beta = 1'};
+    name = {'proposed scheme', 'fixed b_k', 'fixed f^{DT}_k', 'fixed b_k and f^{DT}_k', '\beta = 1'};
+
+    field_names = {
+                'default', ...
+                'fixed_b_k', ...
+                'fixed_f_DT_k', ...
+                'fixed_both', ...
+                'beta_max_1'
+            };
+
 
     nexttile;
-    plot(beta_max_list, t_max.beta, 'o--');
-    hold on;
-    plot(beta_max_list, repelem(t_max.beta(1), length(t_max.beta))', '.--');
+    for i = 1: length(field_names)
+        field = field_names{i};
+        plot(beta_max_list, t_max.beta.(field))
+        hold on
+    end
     xlabel('max compresion ratio');
     ylabel('t_{max} [s]');
     legend(name);
+    
             
     nexttile;
-    semilogy(p_k_list, t_max.p_k, 'o--');
+    for i = 1: length(field_names)
+        field = field_names{i};
+        semilogy(p_k_list, t_max.p_k.(field));
+        hold on
+    end
     xlabel('p_k [W]');
     ylabel('t_{max} [s]');
     legend(name);
 
     nexttile;
-    semilogx(bandwidth_list, t_max.B, 'o--');
+    for i = 1: length(field_names)
+        field = field_names{i};
+        semilogx(bandwidth_list, t_max.B.(field));
+        hold on
+    end
     xlabel('bandwidth [Hz]');
     ylabel('t_{max} [s]');
     legend(name);
 
     nexttile;
-    plot(beta_max_list, beta_avg.beta, 'o--');
-    hold on;
-    plot(beta_max_list, repelem(beta_avg.beta(1), length(beta_avg.beta))', '.--');
+    for i = 1: length(field_names)
+        field = field_names{i};
+        plot(beta_max_list, beta_avg.beta.(field))
+        hold on
+    end
     xlabel('max compresion ratio');
-    ylabel('beta_{avg} [s]');
+    ylabel('beta_{avg}');
     legend(name);
     
     nexttile;
-    plot(p_k_list, beta_avg.p_k, 'o--');
+    for i = 1: length(field_names)
+        field = field_names{i};
+        plot(p_k_list, beta_avg.p_k.(field));
+        hold on
+    end
     xlabel('p_k [W]');
     ylabel('beta_{avg}');
     legend(name);
     
     nexttile;
-    semilogx(bandwidth_list, beta_avg.B, 'o--');
+    for i = 1: length(field_names)
+        field = field_names{i};
+        semilogx(bandwidth_list, beta_avg.B.(field));
+        hold on
+    end
     xlabel('bandwidth [Hz]');
     ylabel('beta_{avg}');
     legend(name);

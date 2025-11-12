@@ -4,5 +4,7 @@
 % plot_bar(b_avg, f_avg, beta_avg, t_avg)
 
 % 3 varied
-% [t_max, beta_avg] = functions.run_multiple_varies(100);
+[t_max, beta_avg] = functions.run_multiple_varies(100);
 
+
+    
