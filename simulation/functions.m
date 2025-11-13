@@ -474,8 +474,13 @@ classdef functions
                 [~, ~, beta_avg_k, t_avg] = functions.run_many_times(options.runs, "beta_max", beta_max_list(k), "bandwidth", bandwidth_list(k), "p_k", p_k_list(k), "fixed_b_k", true, "fixed_f_DT_k", true);
                 beta_avg.fixed_both(k) = mean(beta_avg_k);
                 t_max.fixed_both(k) = t_avg.total;
-                [~, ~, beta_avg_k, t_avg] = functions.run_many_times(options.runs, "beta_max", 1, "bandwidth", bandwidth_list(k), "p_k", p_k_list(k));
-                beta_avg.beta_max_1(k) = mean(beta_avg_k);
+                if vary_type == VaryType.beta_max
+                    beta_avg.beta_max_1(k) = 1.0;
+                    t_max.beta_max_1(k) = t_max.default(1);
+                    continue
+                end
+                [~, ~, ~, t_avg] = functions.run_many_times(options.runs, "beta_max", 1, "bandwidth", bandwidth_list(k), "p_k", p_k_list(k));
+                beta_avg.beta_max_1(k) = 1.0;
                 t_max.beta_max_1(k) = t_avg.total;
             end
             
@@ -491,9 +496,9 @@ classdef functions
 
             [t_max.p_k, beta_avg.p_k] = functions.run_one_vary(options.p_k_list, VaryType.p_k, "runs", n);
 
-            [t_max.B, beta_avg.B] = functions.varied_bandwidth(options.bandwidth_list, VaryType.B, "runs", n);
+            [t_max.B, beta_avg.B] = functions.run_one_vary(options.bandwidth_list, VaryType.B, "runs", n);
 
-            [t_max.beta, beta_avg.beta] = functions.varied_beta_max(options.beta_max_list, VaryType.beta_max, "runs", n);
+            [t_max.beta, beta_avg.beta] = functions.run_one_vary(options.beta_max_list, VaryType.beta_max, "runs", n);
 
         end
 
