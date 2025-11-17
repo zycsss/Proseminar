@@ -20,8 +20,8 @@ classdef c
         h_factor = 2;
         c_linesearch = 1e-4;
         beta_linesearch = 0.5;
-        beta_max_list = 1:0.25:3;
-        p_k_list = linspace(1.6e-3, 100e-3, 10);
-        bandwidth_list = logspace(2, 5, 10);
+        beta_max_list = 1:0.1:3.0;
+        p_k_list = linspace(1.6e-3, 100e-3, 20);
+        bandwidth_list = logspace(2, 5, 20);
     end
 end

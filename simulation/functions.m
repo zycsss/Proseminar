@@ -293,10 +293,11 @@ classdef functions
             beta = functions.beta_list(sensor_list);
         end
 
-        function [b_avg, f_avg, beta_avg, t_avg] = run_many_times(n, options)
+        function [b_avg, f_avg, beta_avg, t_avg] = run_many_times(n, seed_list, options)
 
             arguments
                 n
+                seed_list
 
                 options.type = scenario.uniform;
                 options.beta_max = c.beta_max;
@@ -314,19 +315,9 @@ classdef functions
             t_DT_list = zeros(4, n);
             t_tr_list = zeros(4, n);
             parfor k = 1:n
-
-                % print the current iteration
-                fprintf('iteration %d; beta_max: %.2f; bandwidth: %e; p_k: %e', k, options.beta_max, options.bandwidth, options.p_k);
-                if options.fixed_b_k
-                    fprintf('; fixed b_k') 
-                end
-
-                if options.fixed_f_DT_k
-                    fprintf('; fixed f_DT_k') 
-                end
-
-                fprintf('\n')
                
+                rng(seed_list(k))
+
                 sensor_list = functions.gen_sensor_list(options.type, "beta_max", options.beta_max, "bandwidth", options.bandwidth, "p_k", options.p_k);
                 
                 [b, f, beta, tStruct] = functions.run_one_time(sensor_list, "fixed_b_k", options.fixed_b_k, "fixed_f_DT_k", options.fixed_f_DT_k);
@@ -341,69 +332,10 @@ classdef functions
             b_avg = mean(b_list, 2);
             f_avg = mean(f_list, 2);
             beta_avg = mean(beta_list, 2);
-            t_avg.total = mean(t_total, 2);
-            t_avg.comp_list = mean(t_comp_list, 2)';
-            t_avg.tr_list = mean(t_tr_list, 2)';
-            t_avg.DT_list = mean(t_DT_list, 2)';
-        end
-
-        function [t_max, beta_avg] = varied_beta_max(beta_max_list, options)
-            arguments
-                beta_max_list;
-
-                options.runs = 100;
-                options.fixed_b_k = false
-                options.fixed_f_DT_k = false
-            end
-
-            K = length(beta_max_list);
-
-            if K == 0
-                t_max = null;
-                beta_avg = null;
-                return
-            end
-
-            % 1. Define all the field names in a cell array
-            field_names = {
-                'default', ...
-                'fixed_b_k', ...
-                'fixed_f_DT_k', ...
-                'fixed_both', ...
-                'beta_max_1'
-            };
-
-            % 2. Define the initial value once
-            init_array = zeros(1, K);
-
-            % 3. Initialize the structs (good practice)
-            beta_avg = struct();
-            t_max = struct();
-
-            % 4. Loop through the field names and assign the value
-            for i = 1:length(field_names)
-                field = field_names{i};
-                beta_avg.(field) = init_array;
-                t_max.(field) = init_array;
-            end
-
-            for k = 1:K
-                [b_avg, f_avg, beta_avg_k, t_avg] = functions.run_many_times(options.runs, "beta_max", beta_max_list(k));
-                beta_avg.default(k) = mean(beta_avg_k);
-                t_max.default(k) = t_avg.total;
-                [b_avg, f_avg, beta_avg_k, t_avg] = functions.run_many_times(options.runs, "beta_max", beta_max_list(k), "fixed_b_k", TRUE);
-                beta_avg.fixed_b_k(k) = mean(beta_avg_k);
-                t_max.fixed_b_k(k) = t_avg.total;
-                [b_avg, f_avg, beta_avg_k, t_avg] = functions.run_many_times(options.runs, "beta_max", beta_max_list(k), "fixed_f_DT_k", TRUE);
-                beta_avg.fixed_f_DT_k(k) = mean(beta_avg_k);
-                t_max.fixed_f_DT_k(k) = t_avg.total;
-                [b_avg, f_avg, beta_avg_k, t_avg] = functions.run_many_times(options.runs, "beta_max", beta_max_list(k), "fixed_b_k", TRUE, "fixed_f_DT_k", TRUE);
-                beta_avg.fixed_both(k) = mean(beta_avg_k);
-                t_max.fixed_both(k) = t_avg.total;
-                [b_avg, f_avg, beta_avg_k, t_avg] = functions.run_many_times(options.runs, "beta_max", 1);
-                beta_avg.beta_max_1(k) = mean(beta_avg_k);
-                t_max.beta_max_1(k) = t_avg.total;
-            end
+            t_avg.total = mean(t_total, 2, 'omitnan');
+            t_avg.comp_list = mean(t_comp_list, 2, 'omitnan')';
+            t_avg.tr_list = mean(t_tr_list, 2, 'omitnan')';
+            t_avg.DT_list = mean(t_DT_list, 2, 'omitnan')';
         end
 
         function [t_max, beta_avg] = run_one_vary(vary_list, vary_type, options)
@@ -461,27 +393,29 @@ classdef functions
                 t_max.(field) = init_array;
             end
 
+            seed_list = rand(1, options.runs);
+
             for k = 1:K
-                [~, ~, beta_avg_k, t_avg] = functions.run_many_times(options.runs, "beta_max", beta_max_list(k), "bandwidth", bandwidth_list(k), "p_k", p_k_list(k));
+                [~, ~, beta_avg_k, t_avg] = functions.run_many_times(options.runs, seed_list, "beta_max", beta_max_list(k), "bandwidth", bandwidth_list(k), "p_k", p_k_list(k));
                 beta_avg.default(k) = mean(beta_avg_k);
                 t_max.default(k) = t_avg.total;
-                [~, ~, beta_avg_k, t_avg] = functions.run_many_times(options.runs, "beta_max", beta_max_list(k), "bandwidth", bandwidth_list(k), "p_k", p_k_list(k), "fixed_b_k", true);
+                fprintf('FINNISHED ' + string(vary_type) + '= %.5f ; default\n', vary_list(k));
+                [~, ~, beta_avg_k, t_avg] = functions.run_many_times(options.runs, seed_list, "beta_max", beta_max_list(k), "bandwidth", bandwidth_list(k), "p_k", p_k_list(k), "fixed_b_k", true);
                 beta_avg.fixed_b_k(k) = mean(beta_avg_k);
                 t_max.fixed_b_k(k) = t_avg.total;
-                [~, ~, beta_avg_k, t_avg] = functions.run_many_times(options.runs, "beta_max", beta_max_list(k), "bandwidth", bandwidth_list(k), "p_k", p_k_list(k), "fixed_f_DT_k", true);
+                fprintf('FINNISHED ' + string(vary_type) + '= %.5f ; fixed b\n', vary_list(k));
+                [~, ~, beta_avg_k, t_avg] = functions.run_many_times(options.runs, seed_list, "beta_max", beta_max_list(k), "bandwidth", bandwidth_list(k), "p_k", p_k_list(k), "fixed_f_DT_k", true);
                 beta_avg.fixed_f_DT_k(k) = mean(beta_avg_k);
                 t_max.fixed_f_DT_k(k) = t_avg.total;
-                [~, ~, beta_avg_k, t_avg] = functions.run_many_times(options.runs, "beta_max", beta_max_list(k), "bandwidth", bandwidth_list(k), "p_k", p_k_list(k), "fixed_b_k", true, "fixed_f_DT_k", true);
+                fprintf('FINNISHED ' + string(vary_type) + '= %.5f ; fixed f\n', vary_list(k));
+                [~, ~, beta_avg_k, t_avg] = functions.run_many_times(options.runs, seed_list, "beta_max", beta_max_list(k), "bandwidth", bandwidth_list(k), "p_k", p_k_list(k), "fixed_b_k", true, "fixed_f_DT_k", true);
                 beta_avg.fixed_both(k) = mean(beta_avg_k);
                 t_max.fixed_both(k) = t_avg.total;
-                if vary_type == VaryType.beta_max
-                    beta_avg.beta_max_1(k) = 1.0;
-                    t_max.beta_max_1(k) = t_max.default(1);
-                    continue
-                end
-                [~, ~, ~, t_avg] = functions.run_many_times(options.runs, "beta_max", 1, "bandwidth", bandwidth_list(k), "p_k", p_k_list(k));
+                fprintf('FINNISHED ' + string(vary_type) + '= %.5f ; fixed both\n', vary_list(k));
+                [~, ~, ~, t_avg] = functions.run_many_times(options.runs, seed_list, "beta_max", 1, "bandwidth", bandwidth_list(k), "p_k", p_k_list(k));
                 beta_avg.beta_max_1(k) = 1.0;
                 t_max.beta_max_1(k) = t_avg.total;
+                fprintf('FINNISHED ' + string(vary_type) + '= %.5f ; beta = 1\n', vary_list(k));
             end
             
         end
