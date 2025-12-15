@@ -393,7 +393,7 @@ classdef functions
                 t_max.(field) = init_array;
             end
 
-            seed_list = rand(1, options.runs);
+            seed_list = randi([1, 100000], 1, options.runs);
 
             for k = 1:K
                 [~, ~, beta_avg_k, t_avg] = functions.run_many_times(options.runs, seed_list, "beta_max", beta_max_list(k), "bandwidth", bandwidth_list(k), "p_k", p_k_list(k));
